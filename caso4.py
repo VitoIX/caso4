@@ -38,6 +38,18 @@ def Problema():
         for n in franjas:
             A[i][n] = solver.IntVar(0,1,'Generadores de tipo i encendidos en la franja n')
             
+            
+    anterior = {}
+    for i in tipos:
+        anterior[i] = {}
+        for n in franjas:
+            anterior[i][n + 1] = solver.IntVar(0,1,'si estaba abierta o no en la franja anterior')
+        anterior[i][0] = solver.IntVar(0,1,'al inicio todos estan apagados')
+        for n in franjas:
+            solver.Add(anterior[i][n + 1] == A[i][n])
+            
+    solver.Add(solver.Sum(anterior[i][0] for i in tipos) == 0) #al inicio todos estan apagados
+            
     """Variables de cuanto genera cada generador """
     G = {}
     cantidad_generadores = {}
@@ -86,16 +98,7 @@ def Problema():
     #solver.Minimize( solver.Sum( solver.Sum( (coste_min[j] + solver.Sum(coste_extra[n][i] * (G[i][j][n] - min_prod[i]) for j in cantidad_generadores[i]))for i in tipos) +
                                 #solver.Sum(solver.Sum((1 - A[i][n-1]) * A[i][n] * coste_arranque[i] for j in cantidad_generadores[i]) for i in tipos) for n in franjas))
     
-    anterior = {}
-    for i in tipos:
-        anterior[i] = {}
-        for n in franjas:
-            anterior[i][n + 1] = solver.IntVar(0,1,'si estaba abierta o no en la franja anterior')
-        anterior[i][0] = solver.IntVar(0,1,'al inicio todos estan apagados')
-        for n in franjas:
-            solver.Add(anterior[i][n + 1] == A[i][n])
-            
-    solver.Add(solver.Sum(anterior[i][0] for i in franjas) == 0) #al inicio todos estan apagados
+    
     
     solver.Minimize(solver.Sum( solver.Sum(solver.Sum(coste_generacion[n][i][j] for j in cantidad_generadores[i]) for i in tipos) + 
                                solver.Sum(solver.Sum((1 - anterior[i][n + 1]) * A[i][n] * coste_arranque[i] for j in cantidad_generadores[i]) for i in tipos) for n in franjas))
