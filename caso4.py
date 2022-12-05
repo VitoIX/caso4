@@ -53,28 +53,52 @@ def Problema():
     Gm = {}  #Esta variable probablemente sea innecesaria
     for i in tipos:
         Gm[i] = {}
-        b = numero_gen[i]
-        for j in range(b):
+        for j in cantidad_generadores[i]:
             G[i][j] = max_prod[i]
             
     """ Restricciones """        
     
     for n in franjas:
-        for i in tipos:
-            b = numero_gen[i]
-            solver.Add( demanda_minima[n] == solver.Sum( G[i][j][n] * A[i][n] for j in range(b)))
-            solver.Add( demanda_minima[n] * 1.15 <= solver.Sum( Gm[i][j] * A[i][n] for j in range(b))) #aseguramos q la demanda maxima siempre pueda cumplir el 15%
+        solver.Add( demanda_minima[n] == solver.Sum(solver.Sum( G[i][j][n] * A[i][n] for j in cantidad_generadores[i]) for i in tipos))
+        solver.Add( demanda_minima[n] * 1.15 <= solver.Sum(solver.Sum( Gm[i][j] * A[i][n] for j in cantidad_generadores[i] for i in tipos))) #aseguramos q la demanda maxima siempre pueda cumplir el 15%
             
     
     """ Costes """  
-      
+    
+    coste_extra = {}
+    coste_min = {}
     for n in franjas:
+        coste_extra[n] = {}
+        coste_min[n] = {}
         for i in tipos:
             coste_extra[n][i] = horas[n] * coste_mw[i]
-            coste_min[n][i] = horas[n] * coste_min[i]
+            coste_min[n][i] = horas[n] * coste_min_hora[i]
+            
     
-    solver.Minimize( solver.Sum( solver.Sum( (coste_min[j] + solver.Sum(coste_extra[n][i] * (G[i][j][n] - min_prod[i]) for j in cantidad_generadores[i]))for i in tipos) +
-                                solver.Sum(solver.Sum((1 - A[i][n-1]) * A[i][n] * coste_arranque[i] for j in cantidad_generadores[i]) for i in tipos) for n in franjas))
+    coste_generacion = {}        
+    for n in franjas: 
+        coste_generacion[n] = {}
+        for i in tipos:
+            coste_generacion[n][i] = {}
+            for j in cantidad_generadores[i]:
+                solver.Add(coste_generacion[n][i][j] == A[i][n] * (coste_min[n][i] + coste_extra[n][i] * (G[i][j][n] - min_prod[i])))
+    
+    #solver.Minimize( solver.Sum( solver.Sum( (coste_min[j] + solver.Sum(coste_extra[n][i] * (G[i][j][n] - min_prod[i]) for j in cantidad_generadores[i]))for i in tipos) +
+                                #solver.Sum(solver.Sum((1 - A[i][n-1]) * A[i][n] * coste_arranque[i] for j in cantidad_generadores[i]) for i in tipos) for n in franjas))
+    
+    anterior = {}
+    for i in tipos:
+        anterior[i] = {}
+        for n in franjas:
+            anterior[i][n + 1] = solver.IntVar(0,1,'si estaba abierta o no en la franja anterior')
+        anterior[i][0] = solver.IntVar(0,1,'al inicio todos estan apagados')
+        for n in franjas:
+            solver.Add(anterior[i][n + 1] == A[i][n])
+            
+    solver.Add(solver.Sum(anterior[i][0] for i in franjas) == 0) #al inicio todos estan apagados
+    
+    solver.Minimize(solver.Sum( solver.Sum(solver.Sum(coste_generacion[n][i][j] for j in cantidad_generadores[i]) for i in tipos) + 
+                               solver.Sum(solver.Sum((1 - anterior[i][n + 1]) * A[i][n] * coste_arranque[i] for j in cantidad_generadores[i]) for i in tipos) for n in franjas))
     
     
     
